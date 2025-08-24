@@ -1,8 +1,3 @@
 streamlit
-streamlit-drawable-canvas
-pypdf2
-pdf2image
+PyMuPDF
 pillow
-pypdfium2
-
-
