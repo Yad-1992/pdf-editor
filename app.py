@@ -3,6 +3,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 import io
 import os
+from streamlit_drawable_canvas import st_canvas
 
 # Function to convert PDF page to image for preview
 def pdf_page_to_image(doc, page_num):
@@ -35,11 +36,40 @@ if uploaded_file:
     
     # Sidebar tools (like Sejda's menu)
     tool = st.sidebar.selectbox("Choose Tool", [
-        "Add Text", "Edit Text", "Add Image", "Add Shape", "Add Form Field",
-        "Annotate", "Add Signature", "Whiteout", "Find and Replace", "Save & Download"
+        "Add Text Box", "Add Text", "Edit Text", "Add Image", "Add Shape", 
+        "Add Form Field", "Annotate", "Add Signature", "Whiteout", 
+        "Find and Replace", "Save & Download"
     ])
     
-    if tool == "Add Text":
+    if tool == "Add Text Box":
+        st.sidebar.subheader("Add Text Box (Drag to Place)")
+        text = st.sidebar.text_input("Text to Add")
+        font_size = st.sidebar.slider("Font Size", 8, 72, 12)
+        # Canvas for dragging text box
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",  # Orange fill for text box
+            stroke_width=2,
+            stroke_color="black",
+            background_image=img,
+            update_streamlit=True,
+            height=img.height // 2,
+            width=img.width // 2,
+            drawing_mode="rect",
+            key="canvas",
+        )
+        if canvas_result.json_data:
+            objects = canvas_result.json_data["objects"]
+            if objects and text:
+                # Get last drawn rectangle
+                rect = objects[-1]
+                x, y = rect["left"] * 2, rect["top"] * 2  # Scale up (canvas is half-size)
+                width, height = rect["width"] * 2, rect["height"] * 2
+                pdf_rect = fitz.Rect(x, y, x + width, y + height)
+                if st.sidebar.button("Apply Text Box"):
+                    current_page.insert_textbox(pdf_rect, text, fontsize=font_size)
+                    st.success("Text box added!")
+    
+    elif tool == "Add Text":
         text = st.sidebar.text_input("Text to Add")
         x = st.sidebar.number_input("X Position (0-612 for letter size)", 0, 612, 100)
         y = st.sidebar.number_input("Y Position (0-792 for letter size)", 0, 792, 100)
@@ -50,7 +80,6 @@ if uploaded_file:
     
     elif tool == "Edit Text":
         st.sidebar.warning("Editing existing text requires selecting blocks (advanced). For simplicity, use 'Find and Replace'.")
-        # Advanced: Extract text blocks and allow replacement (expand as needed)
     
     elif tool == "Add Image":
         img_file = st.sidebar.file_uploader("Upload Image", type=["png", "jpg"])
@@ -86,7 +115,6 @@ if uploaded_file:
         name = st.sidebar.text_input("Field Name")
         x, y = st.sidebar.number_input("X"), st.sidebar.number_input("Y")
         if st.sidebar.button("Apply"):
-            # PyMuPDF supports annotations for forms
             rect = fitz.Rect(x, y, x+200, y+20)
             if field_type == "Text":
                 annot = current_page.add_textbox_annot(rect, name)
@@ -134,7 +162,7 @@ if uploaded_file:
                 for rect in areas:
                     page.add_redact_annot(rect)
                     page.apply_redactions()
-                    page.insert_text(rect.tl, replace)  # Insert at top-left of rect
+                    page.insert_text(rect.tl, replace)
             st.success("Replaced occurrences!")
     
     # Save and Download
