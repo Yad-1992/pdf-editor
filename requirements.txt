@@ -1,0 +1,6 @@
+streamlit
+streamlit-drawable-canvas
+pypdf2
+pdf2image
+pillow
+pypdfium2
