@@ -1,54 +1,54 @@
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
-import fitz
+from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
 import numpy as np
 import io
 
-st.set_page_config(page_title="Drag & Drop PDF Editor", layout="wide")
-st.title("📄 PDF Editor (Drag & Drop)")
+st.set_page_config(page_title="PDF Editor", layout="wide")
+st.title("📝 Simple PDF Editor (Drag & Drop Text & Images)")
 
-uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
+# Upload PDF
+uploaded_pdf = st.file_uploader("Upload a PDF", type=["pdf"])
 
-if uploaded_file:
-    # Read PDF
-    pdf_bytes = uploaded_file.read()
-    pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    page = pdf_doc[0]  # first page only for demo
+if uploaded_pdf:
+    reader = PdfReader(uploaded_pdf)
+    first_page = reader.pages[0]
 
-    # Convert page to image
-    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    img_array = np.array(img)  # ✅ Must be numpy array for st_canvas
+    # Render page as white background
+    width, height = 800, 1000
+    background = np.ones((height, width, 3), dtype=np.uint8) * 255
 
-    st.subheader("🖌 Drag & Drop on Canvas")
+    st.subheader("Edit Page (Drag & Drop)")
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=2,
         stroke_color="#000000",
-        background_image=img_array,  # ✅ numpy array
+        background_image=background,
         update_streamlit=True,
-        height=img_array.shape[0],
-        width=img_array.shape[1],
-        drawing_mode="transform",  # ✅ allows drag/drop
+        height=height,
+        width=width,
+        drawing_mode="transform",  # ✅ drag + resize + move
         key="canvas",
     )
 
-    if st.button("💾 Save PDF"):
-        # Insert objects into PDF
-        for obj in canvas_result.json_data["objects"]:
-            if obj["type"] == "i-text":
-                x, y = obj["left"], obj["top"]
-                pdf_doc[0].insert_text((x, y), obj["text"], fontsize=14, color=(0,0,0))
-            elif obj["type"] == "rect":
-                x, y, w, h = obj["left"], obj["top"], obj["width"], obj["height"]
-                rect = fitz.Rect(x, y, x+w, y+h)
-                pdf_doc[0].draw_rect(rect, color=(1,0,0), width=2)
+    # Add text
+    text_input = st.text_input("Add Text")
+    if text_input and canvas_result.json_data:
+        st.write("📌 Drag text box where you want it")
+        st.json(canvas_result.json_data)
 
-        # Save edited PDF
-        out = io.BytesIO()
-        pdf_doc.save(out)
-        st.download_button("⬇️ Download Edited PDF",
-                           out.getvalue(),
-                           file_name="edited.pdf",
-                           mime="application/pdf")
+    # Add image
+    uploaded_img = st.file_uploader("Insert Image", type=["png", "jpg", "jpeg"])
+    if uploaded_img:
+        img = Image.open(uploaded_img).convert("RGB")
+        st.image(img, caption="Image to insert", width=150)
+
+    # Export to PDF
+    if st.button("💾 Save Edited PDF"):
+        writer = PdfWriter()
+        writer.add_page(first_page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        st.download_button("⬇ Download PDF", data=output.getvalue(), file_name="edited.pdf")
